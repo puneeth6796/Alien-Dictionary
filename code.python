@@ -1,0 +1,134 @@
+import json
+from collections import defaultdict, deque
+from typing import List, Dict, Set, Tuple
+
+
+def build_graph(words: List[str]) -> Tuple[Dict[str, Set[str]], Dict[str, int]]:
+    """
+    Builds the graph and in-degree count from the alien dictionary words.
+
+    :param words: Sorted list of alien language words
+    :return: (graph adjacency list mapping char to set of chars,
+              in-degree dictionary mapping char to count)
+    """
+    graph: Dict[str, Set[str]] = defaultdict(set)
+    in_degree: Dict[str, int] = {}
+
+    # Initialize the nodes (characters)
+    for word in words:
+        for ch in word:
+            if ch not in in_degree:
+                in_degree[ch] = 0
+
+    # Build edges from adjacent words
+    for i in range(len(words) - 1):
+        first, second = words[i], words[i + 1]
+        min_len = min(len(first), len(second))
+
+        # Find the first differing character
+        for j in range(min_len):
+            if first[j] != second[j]:
+                # If edge does not exist, create it and increment in-degree
+                if second[j] not in graph[first[j]]:
+                    graph[first[j]].add(second[j])
+                    in_degree[second[j]] += 1
+                break
+        else:
+            # Check prefix condition where first word is longer => invalid input
+            if len(first) > len(second):
+                raise ValueError(
+                    f"Invalid word order: '{first}' is prefix of '{second}' but longer."
+                )
+
+    return graph, in_degree
+
+
+def topological_sort(
+    graph: Dict[str, Set[str]], in_degree: Dict[str, int]
+) -> str:
+    """
+    Performs Kahn's topological sort on the graph to
+    obtain a valid character ordering.
+
+    :param graph: adjacency list representing character precedence
+    :param in_degree: dictionary mapping each char to its in-degree count
+    :return: a string representing the alien language character order
+    """
+    queue: deque[str] = deque([ch for ch in in_degree if in_degree[ch] == 0])
+    order: List[str] = []
+
+    while queue:
+        ch = queue.popleft()
+        order.append(ch)
+
+        for neighbor in graph.get(ch, []):
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+
+    if len(order) != len(in_degree):
+        # Cycle detected or ambiguous order
+        return ""
+
+    return "".join(order)
+
+
+def determine_alien_order(words: List[str]) -> str:
+    """
+    Determines the character order of an alien language given sorted words.
+
+    :param words: sorted list of words in the alien language
+    :return: string of characters denoting the order or empty string if invalid
+    """
+    graph, in_degree = build_graph(words)
+    return topological_sort(graph, in_degree)
+
+
+def main() -> None:
+    import textwrap
+
+    print("=" * 60)
+    print("Alien Dictionary: Determine Character Order".center(60))
+    print("=" * 60)
+    print()
+    print(
+        textwrap.fill(
+            "Enter a JSON array of words sorted according to the alien "
+            "language dictionary. For example:\n"
+            '["wrt", "wrf", "er", "ett", "rftt"]',
+            width=60,
+        )
+    )
+    print()
+
+    user_input = input("Enter alien sorted words JSON array:\n> ").strip()
+
+    try:
+        words = json.loads(user_input)
+        if not isinstance(words, list) or not all(
+            isinstance(w, str) for w in words
+        ):
+            print("\n❌ Invalid input: Expected a JSON array of strings.\n")
+            return
+    except json.JSONDecodeError as jde:
+        print(f"\n❌ JSON decode error: {jde.msg}\n")
+        return
+
+    try:
+        order = determine_alien_order(words)
+    except ValueError as e:
+        print(f"\n❌ Input error: {e}\n")
+        return
+
+    print()
+    if order:
+        print(f"✅ Alien language character order:\n  {order}\n")
+    else:
+        print(
+            "❌ Could not determine a valid character order. "
+            "There may be cycles or ambiguous input.\n"
+        )
+
+
+if __name__ == "__main__":
+    main()
